@@ -22,17 +22,25 @@
       overflow: hidden;
       color: #fff;
       font-family: "Pixelify Sans", cursive;
+      background: transparent;
     }
 
     #game-container {
       position: relative;
       width: 100%;
       height: 100%;
+      background: transparent;
     }
 
     #game {
       width: 100%;
       height: 100%;
+      background: transparent;
+    }
+
+    #game canvas {
+      max-width: 100%;
+      max-height: 100%;
     }
 
     #loading-overlay {
@@ -46,6 +54,7 @@
       gap: 12px;
       padding: 24px;
       text-align: center;
+      background: transparent;
     }
 
     #loading-progress {
@@ -103,19 +112,13 @@
   </div>
 
   <script>
-
     const gameConfig = {
       core: "your-console-here",
       name: "your-game-here",
 
-      // Change these to match your repository.
       emulatorPath:
         "https://cdn.jsdelivr.net/gh/arcade-v/emulatorjs@main/emulator/",
 
-      // ROM URL pattern:
-      // your-rom-here.part01
-      // your-rom-here.part02
-      // etc.
       rom: {
         url: "https://cdn.jsdelivr.net/gh/arcade-v/emulatorjs2@main/your-game-here/your-rom-here",
         min: 1,
@@ -201,22 +204,33 @@
 
       for (let i = config.min; i <= config.max; i++) {
         const suffix = String(i).padStart(config.padding, "0");
-
-        parts.push(`${config.url}.part${suffix}`);
+        parts.push(`config.url.part{suffix}`);
       }
 
       return parts;
     }
 
     function getMirrorUrls(originalUrl, primaryUrl, mirrors) {
-      const urls = [originalUrl];
+      const suffix = originalUrl.startsWith(primaryUrl)
+        ? originalUrl.slice(primaryUrl.length)
+        : null;
+
+      if (suffix === null) {
+        return [originalUrl];
+      }
+
+      const urls = [];
 
       for (const mirror of mirrors) {
-        const candidate = mirror + originalUrl.slice(primaryUrl.length);
+        const candidate = mirror + suffix;
 
         if (!urls.includes(candidate)) {
           urls.push(candidate);
         }
+      }
+
+      if (!urls.includes(originalUrl)) {
+        urls.unshift(originalUrl);
       }
 
       return urls;
@@ -227,7 +241,7 @@
 
       for (const url of urls) {
         try {
-          console.log(`Trying ${label}:`, url);
+          console.log(`Trying ${label}: ${url}`);
 
           const response = await fetch(url, {
             cache: "no-store"
@@ -267,7 +281,13 @@
 
           return buffer;
         } catch (error) {
-          console.warn(`labelfailed:`,url,error);errors.push(`{url}\n  ${error.message}`);
+          console.warn(`Failed ${label}: ${url}`, error);
+
+          errors.push(
+            `${url}\n  ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
         }
       }
 
@@ -275,7 +295,6 @@
         `All mirrors failed for ${label}:\n\n${errors.join("\n\n")}`
       );
     }
-
 
     async function mergeFiles(parts) {
       const buffers = [];
@@ -293,17 +312,17 @@
         updateProgress(
           (i / parts.length) * 90,
           `Downloading ROM part i+1/{parts.length}...`,
-          "Trying available mirrors if a download fails."
+          `Downloaded ${(totalBytes / (1024 * 1024)).toFixed(2)} MB so far.`
         );
-      
+
         const buffer = await fetchWithFallback(
           urls,
           `ROM part i+1/{parts.length}`
         );
-        
+
         buffers.push(buffer);
         totalBytes += buffer.byteLength;
-        
+
         updateProgress(
           ((i + 1) / parts.length) * 90,
           `Downloaded i+1/{parts.length} ROM parts`,
@@ -351,7 +370,6 @@
           }
 
           const url = urls[index++];
-
           const script = document.createElement("script");
 
           script.src = url;
@@ -375,7 +393,6 @@
       });
     }
 
-
     async function startGame() {
       try {
         updateProgress(0, "Preparing ROM parts...");
@@ -384,7 +401,6 @@
 
         console.log("ROM parts:", parts);
 
-        // Download all parts before starting EmulatorJS.
         mergedRomUrl = await mergeFiles(parts);
 
         updateProgress(
@@ -393,7 +409,6 @@
           "The ROM is ready. Initializing the emulator."
         );
 
-        // Set global configuration before loading loader.js.
         window.EJS_player = "#game";
         window.EJS_core = gameConfig.core;
         window.EJS_gameName = gameConfig.name;
@@ -433,3 +448,4 @@
   </script>
 </body>
 </html>
+
